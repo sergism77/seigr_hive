@@ -22,17 +22,19 @@ pub mod eventhandler;
 /// Result type.
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-use tokio::fs;
-use toml;
 use app::App;
-use login::{ authenticate_user, config_exists };
-use ring::hmac::Key;
-use seigrconfig::{SeigrConfig, generate_key};
-use ratatui::{backend::{CrosstermBackend, Backend}, Terminal};
+use crossterm::{
+    event::{KeyCode, KeyEvent, Event},
+    terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use login::{ authenticate_user, config_exists, register_user};
+use seigr_hive::seigrconfig::generate_key;
+use seigrconfig::SeigrConfig;
+
+use ratatui::{backend::{CrosstermBackend, Backend}, Terminal, Frame, layout::{Layout, Constraint}, widgets::{Borders, Block}};
 use tokio::io;
 use tui::Tui;
 use eventhandler::EventHandler;
-use tokio::io::{BufReader, AsyncBufReadExt};
 
 // Show a welcoming message when the application starts.
 pub fn welcome() {
@@ -43,24 +45,24 @@ pub fn welcome() {
 pub fn goodbye() {
     println!("Goodbye!");
 }
+use tokio::io::{BufReader, AsyncBufReadExt};
 
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Generate a key
-    let key = generate_key(); // Replace this with your key generation function
+    let key = generate_key(); // Replace this with your key generation function if you have one
 
-    // Create the SeigrConfig instance
-    let config = SeigrConfig::read_config(&key)?;
-
+    // Create a new SeigrConfig with the key
+    let config = SeigrConfig::new(&key)?;
     let username = "username"; 
-    let mut tui = Tui::new(Terminal::new(CrosstermBackend::new(std::io::stderr()))?, EventHandler::new(), config.clone(), username.to_string())?;
+    let mut tui = Tui::new(Terminal::new(CrosstermBackend::new(std::io::stderr()))?, EventHandler::new(), config, username.to_string())?;
     let mut app = App::new();
     tui.enter()?;
     tui.draw(&mut app)?;
 
     if config_exists() {
-        let username = match &app.user {
+        let username = match &app.username {
             Some(user) => user.username(),
             None => "",
         };
@@ -86,7 +88,7 @@ async fn main() -> Result<()> {
         // Authenticate the user
         match authenticate_user(input_username, input_password) {
             Ok(true) => {
-                println!("Welcome {}!", username);
+                println!("Welcome back {}!", username);
             },
             Ok(false) => {
                 println!("Incorrect username or password.");

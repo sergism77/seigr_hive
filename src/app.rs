@@ -20,7 +20,8 @@ pub struct App {
     /// should the application exit?
     pub should_quit: bool,
     /// the current user
-    pub user: Option<User>,
+    pub username: Option<User>,
+    pub password: Option<User>,
     /// is the user authenticated?
     pub authenticated: bool,
     /// the current state of the application
@@ -32,7 +33,8 @@ impl App {
     pub fn new() -> Self {
         Self {
             should_quit: false,
-            user: None,
+            username: None,
+            password: None,
             authenticated: false,
             state: AppState::Login, // Set the initial state to Login
         }
@@ -49,7 +51,7 @@ impl App {
     /// Register a new user.
     pub fn register_user(&mut self, username: String, password: String, email: String) -> Result<(), std::io::Error> {
         let user = login::register_user(username, password, email)?;
-        self.user = Some(user);
+        self.username = Some(user);
         Ok(())
     }
 
@@ -69,7 +71,7 @@ mod tests {
         let mut app = App::default();
         let result = app.register_user("username".to_string(), "password".to_string(), "email@example.com".to_string());
         assert!(result.is_ok());
-        assert!(app.user.is_some());
+        assert!(app.username.is_some());
     }
 
     #[test]

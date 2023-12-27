@@ -41,6 +41,7 @@ impl SeigrConfig {
             fs::create_dir_all(config_path.parent().unwrap())?;
             let mut config_file = fs::File::create(config_path)?;
             let mut config = SeigrConfig::default();
+            config.key = *key; // Set the key
             let encrypted_config = encrypt_config(&config, key)?; // Pass the key to encrypt_config
             config_file.write_all(&encrypted_config)?;
             Ok(config)
@@ -161,7 +162,8 @@ impl SeigrConfig {
     }
 
     pub fn add_user(&mut self, username: String, password: String, email: String) -> Result<User, io::Error> {
-        let user = User::new(username.clone(), password, email);
+        let user = User::new(username.clone(), password, email)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         self.users.insert(username, user.clone());
         Ok(user)
     }
@@ -191,8 +193,7 @@ fn generate_nonce() -> [u8; NONCE_LENGTH] {
 }
 
 fn encrypt_config(config: &SeigrConfig, key: &[u8; KEY_LENGTH]) -> io::Result<Vec<u8>> {
-    let _key_bytes = generate_key();
-    let unbound_key = aead::UnboundKey::new(&aead::AES_256_GCM, &config.key)
+    let unbound_key = aead::UnboundKey::new(&aead::AES_256_GCM, key)
         .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to create unbound key"))?;
     let key = aead::LessSafeKey::new(unbound_key);
     let additional_data: aead::Aad<[u8; 0]> = aead::Aad::empty();
@@ -204,7 +205,7 @@ fn encrypt_config(config: &SeigrConfig, key: &[u8; KEY_LENGTH]) -> io::Result<Ve
         .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
     let mut config_bytes = config_str.into_bytes();
 
-    let tag = key.seal_in_place_separate_tag(nonce_clone, additional_data, &mut config_bytes)
+    let _tag = key.seal_in_place_separate_tag(nonce_clone, additional_data, &mut config_bytes)
         .map_err(|_| std::io::Error::new(io::ErrorKind::Other, "Encryption failed"))?;
 
     // Append the original nonce to the encrypted config

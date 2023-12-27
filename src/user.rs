@@ -15,17 +15,21 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(username: String, email: String, password: String) -> Self {
+    pub fn new(username: String, email: String, password: String) -> Result<Self, &'static str> {
         let beeid = Self::generate_beeid(&username, &email); // Implement your logic to generate a unique beeid
-        User {
+        // Check if the beeid is valid, if not return an error
+        if beeid.is_empty() {
+            return Err("Failed to generate beeid");
+        }
+        Ok(User {
             username,
             email,
             password,
             beeid,
             authenticate: false,
-        }
+        })
     }
-
+    
     pub fn generate_beeid(username: &str, email: &str) -> String {
         let mut hasher = DefaultHasher::new();
         hasher.write(username.as_bytes());

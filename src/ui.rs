@@ -7,7 +7,7 @@ use ratatui::{
 use crate::app::App;
 
 pub fn render_login(app: &mut App, f: &mut Frame) {
-  let (username, password) = match &app.user {
+  let (username, password) = match &app.username {
     Some(user) => (user.username(), user.password()),
     None => ("No user logged in", ""),
 };
@@ -15,7 +15,7 @@ pub fn render_login(app: &mut App, f: &mut Frame) {
   f.render_widget(
       Paragraph::new(format!(
           "
-          Login Form:\n\
+          
           Username: {}\n\
           Password: {}\n\
           Press `Enter` to submit.\n\
@@ -37,7 +37,7 @@ pub fn render_login(app: &mut App, f: &mut Frame) {
 }
 
 pub fn render_register(app: &mut App, f: &mut Frame) {
-  let (username, email, password) = match &app.user {
+  let (username, email, password) = match &app.username {
       Some(user) => (user.username(), user.email(), user.password()),
       None => ("No user logged in", "", ""),
   };
