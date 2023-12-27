@@ -1,10 +1,10 @@
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::Path;
-use std::process::Command;
+
 use std::fs::File;
 use serde::{Deserialize, Serialize};
-use ring::aead::{self, Aad, BoundKey, Nonce, UnboundKey, AES_256_GCM, LessSafeKey};
+use ring::aead::{self, Aad, BoundKey, UnboundKey, LessSafeKey};
 use ring::rand::{SecureRandom, SystemRandom};
 
 use crate::user::User;
@@ -15,7 +15,7 @@ const KEY_LENGTH: usize = 32;
 const NONCE_LENGTH: usize = 12;
 
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SeigrConfig {
     pub username: String,
     pub password: String,
@@ -34,31 +34,28 @@ pub struct SeigrConfig {
 }
 
 impl SeigrConfig {
-    pub fn new() -> io::Result<Self> {
+    pub fn new(key: &[u8; KEY_LENGTH]) -> io::Result<Self> {
         let config_path = Path::new(CONFIG_FILE_PATH);
         if !config_path.exists() {
             // Create a new config file if it doesn't exist
             fs::create_dir_all(config_path.parent().unwrap())?;
             let mut config_file = fs::File::create(config_path)?;
             let mut config = SeigrConfig::default();
-            config.key = generate_key(); // Add this line
-            config.nonce = generate_nonce(); // Add this line
-            let encrypted_config = encrypt_config(&config)?;
+            let encrypted_config = encrypt_config(&config, key)?; // Pass the key to encrypt_config
             config_file.write_all(&encrypted_config)?;
             Ok(config)
         } else {
             // If the config file exists, read it
-            let config = SeigrConfig::default(); // Create a default config
-            Self::read_config(&config)
+            Self::read_config(key)
         }
     }
-
-    pub fn read_config(seigr_config: &SeigrConfig) -> io::Result<SeigrConfig> {
+    
+    pub fn read_config(key: &[u8; KEY_LENGTH]) -> io::Result<SeigrConfig> {
         let config_path = Path::new(CONFIG_FILE_PATH);
         let mut config_file = fs::File::open(config_path)?;
         let mut encrypted_config = Vec::new();
         config_file.read_to_end(&mut encrypted_config)?;
-        let decrypted_config_str = decrypt_config(seigr_config, &encrypted_config)
+        let decrypted_config_str = decrypt_config(key, &encrypted_config)
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
         // Parse the decrypted_config_str into a SeigrConfig
         let decrypted_config: SeigrConfig = serde_json::from_str(&decrypted_config_str)
@@ -69,7 +66,7 @@ impl SeigrConfig {
     pub fn save_config(&self) -> io::Result<()> {
         let config_path = Path::new(CONFIG_FILE_PATH);
         let mut config_file = fs::File::create(config_path)?;
-        let encrypted_config = encrypt_config(self)?;
+        let encrypted_config = encrypt_config(self, &self.key)?;
         config_file.write_all(&encrypted_config)?;
         Ok(())
     }
@@ -112,7 +109,7 @@ impl SeigrConfig {
     pub fn save_to_file(&self) -> io::Result<()> {
         let config_path = Path::new(CONFIG_FILE_PATH);
         let mut config_file = fs::File::create(config_path)?;
-        let encrypted_config = encrypt_config(self)?;
+        let encrypted_config = encrypt_config(self, &self.key)?;
         config_file.write_all(&encrypted_config)?;
         Ok(())
     }
@@ -139,31 +136,27 @@ impl SeigrConfig {
         }
     }
 
-    pub fn set_username(username: String) -> io::Result<()> {
-        let mut config = SeigrConfig::new()?;
-        config.username = username;
-        config.save_config()?;
+    pub fn set_username(&mut self, username: String) -> io::Result<()> {
+        self.username = username;
+        self.save_config()?;
+        Ok(())
+    }
+    
+    pub fn set_password(&mut self, password: String) -> io::Result<()> {
+        self.password = password;
+        self.save_config()?;
+        Ok(())
+    }
+    
+    pub fn set_email(&mut self, email: String) -> io::Result<()> {
+        self.email = email;
+        self.save_config()?;
         Ok(())
     }
 
-    pub fn set_password(password: String) -> io::Result<()> {
-        let mut config = SeigrConfig::new()?;
-        config.password = password;
-        config.save_config()?;
-        Ok(())
-    }
-
-    pub fn set_email(email: String) -> io::Result<()> {
-        let mut config = SeigrConfig::new()?;
-        config.email = email;
-        config.save_config()?;
-        Ok(())
-    }
-
-    pub fn set_beeid(beeid: String) -> io::Result<()> {
-        let mut config = SeigrConfig::new()?;
-        config.beeid = beeid;
-        config.save_config()?;
+    pub fn set_beeid(&mut self, beeid: String) -> io::Result<()> {
+        self.beeid = beeid;
+        self.save_config()?;
         Ok(())
     }
 
@@ -183,7 +176,7 @@ impl SeigrConfig {
 }
 
 
-fn generate_key() -> [u8; KEY_LENGTH] {
+pub fn generate_key() -> [u8; KEY_LENGTH] {
     let rng = SystemRandom::new();
     let mut key = [0u8; KEY_LENGTH];
     rng.fill(&mut key).unwrap();
@@ -197,44 +190,47 @@ fn generate_nonce() -> [u8; NONCE_LENGTH] {
     nonce
 }
 
-pub fn encrypt_config(config: &SeigrConfig) -> io::Result<Vec<u8>> {
-    let key_bytes = generate_key();
+fn encrypt_config(config: &SeigrConfig, key: &[u8; KEY_LENGTH]) -> io::Result<Vec<u8>> {
+    let _key_bytes = generate_key();
     let unbound_key = aead::UnboundKey::new(&aead::AES_256_GCM, &config.key)
         .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to create unbound key"))?;
     let key = aead::LessSafeKey::new(unbound_key);
     let additional_data: aead::Aad<[u8; 0]> = aead::Aad::empty();
 
     let nonce = aead::Nonce::assume_unique_for_key(generate_nonce());
+    let nonce_bytes = nonce.as_ref();
+    let nonce_clone = aead::Nonce::assume_unique_for_key(*nonce_bytes);
     let config_str = toml::to_string(config)
         .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
     let mut config_bytes = config_str.into_bytes();
 
-    let tag = key.seal_in_place_separate_tag(nonce, additional_data, &mut config_bytes)
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Encryption failed"))?;
+    let tag = key.seal_in_place_separate_tag(nonce_clone, additional_data, &mut config_bytes)
+        .map_err(|_| std::io::Error::new(io::ErrorKind::Other, "Encryption failed"))?;
 
-    // Append the authentication tag to the encrypted config
-    config_bytes.extend_from_slice(tag.as_ref());
-
-    Ok(config_bytes)
+    // Append the original nonce to the encrypted config
+    let mut result = nonce_bytes.to_vec();
+    result.extend(config_bytes);
+    Ok(result)
 }
 
-pub fn decrypt_config(config: &SeigrConfig, encrypted_config: &[u8]) -> io::Result<String> {
-    let config = SeigrConfig::new()?;
-    let key_bytes = generate_key(); // You need to use the same key that was used for encryption
-    let unbound_key = UnboundKey::new(&aead::AES_256_GCM, &config.key)
+pub fn decrypt_config(key: &[u8; KEY_LENGTH], encrypted_config: &[u8]) -> io::Result<String> {
+    let unbound_key = UnboundKey::new(&aead::AES_256_GCM, key)
         .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to create unbound key"))?;
-    let mut key = LessSafeKey::new(unbound_key);
+    let key = LessSafeKey::new(unbound_key);
 
-    let nonce = aead::Nonce::assume_unique_for_key(generate_nonce());
+    // Split the nonce and the encrypted config
+    let (nonce_bytes, encrypted_config) = encrypted_config.split_at(aead::NONCE_LEN);
+    let nonce = aead::Nonce::try_assume_unique_for_key(nonce_bytes)
+        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to create nonce"))?;
     let additional_data: Aad<[u8; 0]> = Aad::empty();
 
     let mut encrypted_config = encrypted_config.to_vec();
 
     let decrypted_config = key.open_in_place(nonce, additional_data, &mut encrypted_config)
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Decryption failed"))?;
+        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Decryption failed"))?;
 
     let decrypted_config_str = String::from_utf8(decrypted_config.to_vec())
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
+        .map_err(|err| std::io::Error::new(io::ErrorKind::Other, err.to_string()))?;
 
     Ok(decrypted_config_str)
 }

@@ -2,8 +2,6 @@ use std::path::Path;
 use crate::seigrconfig::SeigrConfig;
 use crate::user::User;
 
-use crate::{tui::Tui, app::App};
-
 pub fn register_user(username: String, password: String, email: String) -> Result<User, std::io::Error> {
     let mut config = SeigrConfig::from_file()?;
     let user = config.add_user(username, password, email)?;
@@ -25,5 +23,7 @@ pub fn authenticate_user(username: String, password: String) -> Result<bool, std
 }
 
 pub fn config_exists() -> bool {
-    Path::new("seigrconfig.toml").exists()
+    const CONFIG_FILE_PATH: &str = "config/seigrconfig.toml";
+    let config_path = Path::new(CONFIG_FILE_PATH);
+    config_path.exists()
 }
