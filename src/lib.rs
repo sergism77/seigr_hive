@@ -7,5 +7,4 @@ pub mod login;
 pub mod seigrconfig;
 pub mod ui;
 pub mod tui;
-pub mod beecell;
 pub mod eventhandler;

@@ -1,7 +1,7 @@
 use crate::login;
 use crate::user::User;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AppState {
     Login,
     Register,
@@ -15,13 +15,16 @@ impl Default for AppState {
 }
 
 /// Application.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct App {
     /// should the application exit?
     pub should_quit: bool,
+    /// the current user's username
+    pub username: Option<String>,
+    /// the current user's password
+    pub password: Option<String>,
     /// the current user
-    pub username: Option<User>,
-    pub password: Option<User>,
+    pub user: Option<User>,
     /// is the user authenticated?
     pub authenticated: bool,
     /// the current state of the application
@@ -35,10 +38,12 @@ impl App {
             should_quit: false,
             username: None,
             password: None,
+            user: None,
             authenticated: false,
             state: AppState::Login, // Set the initial state to Login
         }
     }
+
 
     /// Handles the tick event of the terminal.
     pub fn tick(&self) {}
@@ -50,8 +55,10 @@ impl App {
 
     /// Register a new user.
     pub fn register_user(&mut self, username: String, password: String, email: String) -> Result<(), std::io::Error> {
-        let user = login::register_user(username, password, email)?;
-        self.username = Some(user);
+        let user = login::register_user(username.clone(), password.clone(), email.clone())?;
+        self.user = Some(user);
+        self.username = Some(username);
+        self.password = Some(password);
         Ok(())
     }
 
@@ -61,6 +68,34 @@ impl App {
         self.authenticated = authenticated;
         Ok(())
     }
+
+    /// Get the current state of the application.
+    pub fn get_state(&self) -> AppState {
+        self.state.clone()
+    }
+
+    /// Set the current state of the application.
+    pub fn set_state(&mut self, state: AppState) {
+        self.state = state;
+    }
+
+    /// Get the current user.
+    pub fn get_user(&self) -> Option<User> {
+        self.user.clone()
+    }
+
+    /// Set the current user.
+    pub fn set_user(&mut self, user: User) {
+        self.user = Some(user);
+    }
+
+    /// Get the current user's email.
+    pub fn get_email(&self) -> Option<String> {
+        self.user.as_ref().map(|user| user.email.clone())
+    }
+
+    
+
 }
 
 #[cfg(test)]

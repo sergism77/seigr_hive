@@ -3,15 +3,15 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-
-
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 pub struct User {
-    username: String,
-    email: String,
-    password: String,
-    beeid: String,
-    authenticate: bool,
+    pub username: String,
+    pub email: String,
+    pub password: String,
+    pub beeid: String,
+    pub authenticate: bool,
+    pub key: [u8; 32],
+    pub password_hash: String,
 }
 
 impl User {
@@ -27,6 +27,8 @@ impl User {
             password,
             beeid,
             authenticate: false,
+            key: [0; 32],
+            password_hash: String::new(),
         })
     }
     
@@ -64,5 +66,21 @@ impl User {
 
     pub fn beeid(&self) -> &str {
         &self.beeid
+    }
+
+    pub fn update_username(&mut self, new_username: String) {
+        self.username = new_username;
+    }
+
+    pub fn update_password(&mut self, new_password: String) {
+        self.password = new_password;
+    }
+
+    pub fn update_email(&mut self, new_email: String) {
+        self.email = new_email;
+    }
+
+    pub fn get_email(&self) -> &str {
+        &self.email
     }
 }

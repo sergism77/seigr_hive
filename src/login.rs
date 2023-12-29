@@ -5,7 +5,7 @@ use crate::user::User;
 pub fn register_user(username: String, password: String, email: String) -> Result<User, std::io::Error> {
     let mut config = SeigrConfig::from_file()?;
     let user = config.add_user(username, password, email)?;
-    config.save_to_file()?;
+    config.save_config()?;
     Ok(user)
 }
 

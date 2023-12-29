@@ -1,19 +1,15 @@
 use std::{io, panic};
-
 use color_eyre::Result;
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
-
-pub type CrosstermTerminal =
-    ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stderr>>;
-
-    use crate::app::{App, AppState};
-    use crate::seigrconfig::SeigrConfig;
-    use crate::user::User;
-    use crate::eventhandler::EventHandler;
-    use crate::ui;
+use crate::app::{App, AppState};
+use crate::seigrconfig::SeigrConfig;
+use crate::user::User;
+use crate::eventhandler::EventHandler;
+use crate::ui;
+use crate::ui::{render_login, render_register};
 
 /// Representation of a terminal user interface.
 ///
@@ -21,33 +17,57 @@ pub type CrosstermTerminal =
 /// initializing the interface and handling the draw events.
 pub struct Tui {
     /// Interface to the Terminal.
-    terminal: CrosstermTerminal,
+    terminal: ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stderr>>,
     /// Terminal event handler.
     pub events: EventHandler,
-    /// The current user.
-    pub user: User,
+    /// The configuration.
+    pub config: SeigrConfig,
 }
 
 impl Tui {
     /// Constructs a new instance of [`Tui`].
-    pub fn new(terminal: CrosstermTerminal, events: EventHandler, config: SeigrConfig, username: String) -> Result<Self, std::io::Error> {
-        let user = config.get_user(username)?; // Get the user from the config
-        Ok(Self { terminal, events, user })
+    pub fn new(terminal: ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stderr>>, events: EventHandler, config: SeigrConfig) -> Result<Self, std::io::Error> {
+        Ok(Self { terminal, events, config })
     }
+
 
     /// [`Draw`] the terminal interface by [`rendering`] the widgets.
     ///
     /// [`Draw`]: tui::Terminal::draw
-    /// [`rendering`]: crate::ui:render
-    pub fn draw(&mut self, app: &mut App) -> Result<()> {
+    /// [`rendering`]: crate::ui::render
+    pub fn draw(&mut self, app: &mut App) -> Result<(String, String), Box<dyn std::error::Error>> {
+        let mut input_username = String::new();
+        let mut input_password = String::new();
+    
         self.terminal.draw(|frame| {
             match app.state {
-                AppState::Login => ui::render_login(app, frame),
-                AppState::Register => ui::render_register(app, frame),
+                AppState::Login => {
+                    if let Ok((username, password)) = ui::render_login(app, frame) {
+                        input_username = username;
+                        input_password = password;
+                    } else if let Err(e) = ui::render_login(app, frame) {
+                        // Handle error here
+                        eprintln!("Error rendering login: {}", e);
+                    }
+                },
+                AppState::Register => {
+                    if let Ok((username, password)) = ui::render_register(app, frame) {
+                        input_username = username;
+                        input_password = password;
+                    } else if let Err(e) = ui::render_register(app, frame) {
+                        // Handle error here
+                        eprintln!("Error rendering register: {}", e);
+                    }
+                },
                 // Add more states as needed
             }
+        }).map_err(|e| {
+            // Handle error here
+            eprintln!("Error drawing terminal: {}", e);
+            e
         })?;
-        Ok(())
+    
+        Ok((input_username, input_password))
     }
 
     /// Initializes the terminal interface.
@@ -74,9 +94,6 @@ impl Tui {
         Ok(())
     }
 
-
-
-
     /// Resets the terminal interface.
     ///
     /// This function is also used for the panic hook to revert
@@ -97,6 +114,26 @@ impl Tui {
     pub fn exit(&mut self) -> Result<()> {
         Self::reset()?;
         self.terminal.show_cursor()?;
+        Ok(())
+    }
+
+    pub fn draw_login(&mut self, app: &mut App) -> Result<()> {
+        self.terminal.draw(|frame| {
+            if let Err(e) = ui::render_login(app, frame) {
+                // Handle error here
+                eprintln!("Error rendering login: {}", e);
+            }
+        })?;
+        Ok(())
+    }
+    
+    pub fn draw_register(&mut self, app: &mut App) -> Result<()> {
+        self.terminal.draw(|frame| {
+            if let Err(e) = ui::render_register(app, frame) {
+                // Handle error here
+                eprintln!("Error rendering register: {}", e);
+            }
+        })?;
         Ok(())
     }
 }
